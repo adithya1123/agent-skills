@@ -3,6 +3,10 @@
 All AGENTS/ output documents follow these schemas.
 Copy-paste these templates when creating new documents.
 
+> **Date rule**: Every `{DATE}` placeholder must be filled by running:
+> `python3 -c "import datetime; print(datetime.date.today())"`
+> Never guess or hallucinate the date.
+
 ---
 
 ## agents-entry

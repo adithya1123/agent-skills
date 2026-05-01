@@ -44,6 +44,20 @@ Ask if unclear: *"Should I document the whole repo or a specific part?"*
 
 ---
 
+## Standing Rule: Always Fetch Today's Date
+
+Whenever you write a `_Last updated: {DATE}_` field in any AGENTS document,
+**never guess or hallucinate the date**. Run this command first and use the output:
+
+```bash
+python3 -c "import datetime; print(datetime.date.today())"
+```
+
+This applies at initial documentation time, during Phase 7 incremental updates,
+and any time a document is revised.
+
+---
+
 ## Phase 2: Choose Output Format
 
 **Before doing any file reading, decide whether to produce a flat `AGENTS.md` or
@@ -229,7 +243,8 @@ When code changes:
 - Module removed → remove from `00_map.md`, `AGENTS.md`, its contract file, and any cross-references pointing to it
 
 Procedure: read changed files → identify affected AGENTS/ documents →
-surgical edits only → update `last_updated` timestamp.
+surgical edits only → update `last_updated` timestamp by running
+`python3 -c "import datetime; print(datetime.date.today())"` (never guess).
 
 ---
 
