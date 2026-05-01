@@ -33,6 +33,7 @@ Core entities: `User` (has many `Subscription`s, one active at a time),
 Primary key convention: UUID4 everywhere, never int. Foreign keys use `ON DELETE RESTRICT`
 — deleting a User with active Subscriptions raises `IntegrityError`, not a cascade.
 
+→ For full contracts: `contracts/`
 → For hazards: `01_hazards.md`
 → For task playbooks: `playbooks/`
 ```

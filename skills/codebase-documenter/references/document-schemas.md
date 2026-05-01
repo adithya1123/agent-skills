@@ -143,6 +143,9 @@ _Last updated: {DATE}_
 | users | `src/users/` | User CRUD + roles | `→ contracts/users.md` |
 | ...   | ...          | ...                 | ...                    |
 
+**Key contracts column**: link only to files actually created in Phase 4.
+Write `—` for modules with no contract file. Do not speculate.
+
 ## Data Model Summary
 Short prose (3–5 sentences) describing core entities and their relationships.
 Include the primary keys and the most important foreign key constraint.
@@ -300,6 +303,13 @@ Revenue uses {which revenue table/field}.
 **What NOT to index here:**
 - Pure infrastructure utilities (string formatting, date parsing, HTTP helpers)
 - Functions already fully covered by a module contract note
+
+**Deduplication pass (run after Phase 4):** Once contract files exist, review this
+file and remove or condense any entry that is fully captured by a contract note.
+The contract note is the single source of truth for call-site behavior; this file
+is the single source of truth for the business concept and formula. If an entry
+here and a contract note overlap, keep the formula/concept here and the
+invariants/side-effects/failure modes in the contract. Remove outright duplication.
 
 ---
 
@@ -579,7 +589,15 @@ include relevant terminology — "Lakeflow pipelines", "Nielsen RMS data",
 | Module contract file | lowercase, underscores | `contracts/user_service.md` |
 | Playbook file | verb_noun, underscores | `playbooks/add_endpoint.md` |
 | Hazard section anchor | lowercase, no spaces | `#auth`, `#database`, `#external-apis` |
-| Cross-reference links | relative paths | `→ contracts/auth.md` |
+| Cross-reference links | see path rules below | |
+
+**Path rules for cross-references:**
+- Documents inside `AGENTS/` (contracts, playbooks, 00_map.md, etc.) use paths
+  **relative to `AGENTS/`** — e.g. `→ contracts/auth.md`, `→ 01_hazards.md#auth`
+- `AGENTS.md` at the repo root uses paths **relative to the repo root** — e.g.
+  `→ AGENTS/contracts/auth.md`, `→ AGENTS/00_map.md`
+
+This keeps links correct regardless of where the reader opens the file.
 
 ---
 

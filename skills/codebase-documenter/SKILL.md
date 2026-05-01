@@ -36,7 +36,7 @@ Three goals this documentation serves:
 | Input | Approach |
 |---|---|
 | Entire repo | Full pipeline — all phases |
-| Directory / module | Phases 3, 3.5, 4, 5 — scoped to that directory |
+| Directory / module | Phases 3, 3.5, 4, 4.5, 5 — scoped to that directory |
 | Single file | Phase 4 only (contract extraction) |
 | Already-indexed repo, new files added | Phase 7 — incremental update only |
 
@@ -66,7 +66,8 @@ Use the full `AGENTS/` directory when ANY of the following are true:
 **If flat format**: produce a single `AGENTS.md` at the repo root using the
 `agents-entry` schema from `references/document-schemas.md`. This file includes
 YAML frontmatter so the navigator can load it as the agent memory entry point.
-Skip straight to the Final Step — the flat file IS the agent instructions. Stop.
+`AGENTS.md` in flat format IS the agent entry point — stop here. Do not continue
+to Phase 3 or the Final Step.
 
 **If full directory**: check whether an `AGENTS.md` already exists at the repo
 root. Two sub-cases:
@@ -88,7 +89,7 @@ useful to a human browsing the repo. Then continue to Phase 3.
 
 ## Phase 3: Reconnaissance
 
-**Goal**: Build the structural map without reading every file.
+**Goal**: Gather structural reconnaissance data without reading every file.
 
 ```bash
 find . -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" \
@@ -106,8 +107,8 @@ Also check for:
 
 Identify: entry points, data model location, module boundaries.
 
-Output → `AGENTS/00_map.md`
-Format → `references/document-schemas.md#structural-map`
+Hold all findings in working memory — `AGENTS/00_map.md` is written in Phase 4.5
+after contract files exist so the Module Index links are accurate.
 
 ---
 
@@ -162,6 +163,21 @@ Format → `references/document-schemas.md#contract-note`
 
 ---
 
+## Phase 4.5: Finalize Structural Map
+
+**Goal**: Write `AGENTS/00_map.md` now that the contract files from Phase 4 exist.
+
+Use the structural info collected during Phase 3 reconnaissance (stack, entry
+points, module list, data model). For the "Key contracts" column in the Module
+Index, list only `→ contracts/{module}.md` links that were **actually created**
+in Phase 4. Do not speculate or pre-fill links for contract files that do not
+exist yet. Modules with no contract file: write `—` in the Key contracts column.
+
+Output → `AGENTS/00_map.md`
+Format → `references/document-schemas.md#structural-map`
+
+---
+
 ## Phase 5: Hazard Map
 
 **Goal**: Document what will break silently, what the agent must NEVER do.
@@ -180,7 +196,7 @@ Format → `references/document-schemas.md#hazard-map`
 
 ## Phase 6: Task Playbooks
 
-**Goal**: Step-by-step instructions for the 10 most common agent tasks.
+**Goal**: Step-by-step instructions for the most common agent tasks in this repo.
 
 Always include:
 1. Add a new API endpoint
@@ -188,6 +204,10 @@ Always include:
 3. Add a new test
 4. Run the test suite
 5. Deploy / build
+
+Add more playbooks for any task that is codebase-specific, non-obvious from the
+directory structure, or has been a source of friction (e.g. "seed the local DB",
+"add a background job", "regenerate API client").
 
 Each playbook: exact commands, exact files to create/modify, validation step,
 common failure modes + fixes.
@@ -203,19 +223,22 @@ When code changes:
 - New file in documented module → update that module's contract file
 - New `# HACK:` or `# WARNING:` → add to `01_hazards.md`
 - New domain calculation in utils → add to `02_business_logic.md`
-- New module added → add narrative to `03_narratives.md`, add row to `AGENTS.md` module index
+- New module added → create its contract file in `contracts/`; add narrative to `03_narratives.md`; add row to both `00_map.md` and `AGENTS.md` module indexes
 - New CLI command / Makefile target → update playbook
-- Renamed module → update `00_map.md` + all cross-references + `AGENTS.md` module index
-- Module removed → remove from `00_map.md`, `AGENTS.md`, and its contract file
+- Renamed module → update `00_map.md` + `AGENTS.md` module index + its contract filename + all cross-references that point to it
+- Module removed → remove from `00_map.md`, `AGENTS.md`, its contract file, and any cross-references pointing to it
 
 Procedure: read changed files → identify affected AGENTS/ documents →
 surgical edits only → update `last_updated` timestamp.
 
 ---
 
-## Final Step: Generate Agent Instructions
+## Final Step: Generate Agent Instructions (directory format only)
 
 After all other documents are written, generate `AGENTS/00_agent_instructions.md`.
+
+This step only applies to the full directory format. Flat format stops at Phase 2
+with `AGENTS.md` serving as the agent entry point.
 
 This file is the entry point for `codebase-navigator`. It must accurately
 reflect every document actually produced — do not reference files that
@@ -253,10 +276,10 @@ Commit both `AGENTS.md` and the `AGENTS/` directory to version control.
 
 - [ ] `AGENTS.md` — present at root; correct schema for format (entry vs. readme)
 - [ ] `AGENTS.md` — if directory format: module index matches `00_map.md`, no frontmatter
-- [ ] `00_map.md` — every module listed, test/deploy commands accurate
+- [ ] `00_map.md` — every module listed, test/deploy commands accurate; Key contracts column matches files actually in `contracts/` (`—` for modules with no contract file)
 - [ ] `01_hazards.md` — every hazard specific ("never call X" not "be careful")
-- [ ] `02_business_logic.md` — every domain calculation has formula in plain English
-- [ ] `03_narratives.md` — every module has a "what it does NOT do" section
+- [ ] `02_business_logic.md` — every domain calculation has formula in plain English; deduplication pass against contracts done (no entry fully duplicates a contract note)
+- [ ] `03_narratives.md` — every module has a "what it does NOT do" section and a failure signature
 - [ ] `contracts/` — every note has something non-obvious; omit if obvious from signature
 - [ ] `contracts/` — key functions have `Failure modes:` populated
 - [ ] `playbooks/` — every playbook mentally traced end-to-end
