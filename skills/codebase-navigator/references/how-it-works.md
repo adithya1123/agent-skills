@@ -16,12 +16,14 @@ codebase-documenter    →    AGENTS/    ←    codebase-navigator
 "update the docs for these changed files"
 
 **What it does**: Reads source code, produces the `AGENTS/` directory.
-Runs the full 5-phase pipeline (Reconnaissance → Business Logic & Narratives →
-Contract Extraction → Hazard Map → Playbooks) then generates
-`AGENTS/00_agent_instructions.md` as the final step.
+Runs the documentation pipeline (Reconnaissance → Business Logic & Narratives →
+Contract Extraction → nested memory routing or consolidation → Hazard Map →
+Playbooks) then generates `AGENTS/00_agent_instructions.md` as the final step.
+For deep repos, it also writes `AGENTS/memory_index.md` and subsystem
+`AGENTS/manifest.md` files so lower-level docs can remain canonical.
 
 **When it runs**: Once per repo to bootstrap. Then incrementally whenever
-code changes (Phase 5 — surgical updates to affected documents only).
+code changes (incremental updates — surgical changes to affected documents only).
 
 **Output**: `AGENTS/` directory committed to the repo.
 
@@ -31,7 +33,9 @@ code changes (Phase 5 — surgical updates to affected documents only).
 writing features, tracing outputs, finding formulas, understanding behavior.
 
 **What it does**: Reads `AGENTS/00_agent_instructions.md` first, maps the
-question to the right document type, reads that document, answers.
+question to the right document type, follows `memory_index.md` into subsystem
+memory when present, reads source only when the memory points to exact source
+landmarks or the task requires implementation-level detail, then answers.
 
 **When it runs**: Every time someone asks a code question.
 
@@ -44,6 +48,8 @@ This file is the handshake between the two skills.
 - `codebase-documenter` generates it last, after all other documents exist,
   so its memory index is always accurate
 - `codebase-navigator` reads it first, always, before doing anything else
+- In deep repos, it points to `AGENTS/memory_index.md`, which routes to
+  subsystem-local `AGENTS/` memories and source entry points
 
 If this file exists → the repo is documented → navigator can work.
 If this file does not exist → navigator tells the user to run the documenter.
