@@ -25,14 +25,17 @@ Install both skills together.
 
 **Check which memory format this repo uses.**
 
-**Option A — flat format**: look for `AGENTS.md` at the repo root.
-- If it exists → read it immediately. It contains the full memory in a single
-  file. Use it directly — there is no `AGENTS/` directory to navigate.
-
 **Option B — directory format**: look for `AGENTS/00_agent_instructions.md`.
 - If it exists → read it immediately before doing anything else. It contains
   the full memory index and tells you exactly which document to read for any
   question. Do not scan the codebase. Do not read random files. Start there.
+
+**Option A — flat format**: if `AGENTS/00_agent_instructions.md` does NOT exist,
+look for `AGENTS.md` at the repo root.
+- Check whether it has YAML frontmatter (`---` at the top with `name:` and `description:` fields).
+- If it has frontmatter → flat format memory. Read it and use it directly.
+- If it has no frontmatter → it is a human-readable directory index, not agent memory.
+  Continue to "If neither exists" below.
 
 **If neither exists** → the repo has not been documented yet. Tell the user:
 *"This repo doesn't have agent memory yet. Run the `codebase-documenter` skill
@@ -59,8 +62,8 @@ corresponding section heading within the single file instead of a separate docum
 | `AGENTS/03_narratives.md` | What does module X do? Why does it exist? What does it NOT handle? |
 | `AGENTS/contracts/{module}.md` | How do I call X? What does it return? What produced output Y? What calls Z? |
 | `AGENTS/playbooks/{task}.md` | How do I add X / run tests / deploy in this specific repo? |
-| `AGENTS/04_pipeline_stages.md` | What does pipeline stage X do? What tables does it read/write? What columns? Why didn't it run? Where are its logs? |
-| `AGENTS/05_pipeline_dag.md` | Which stage produces table X? What is the execution order? What are the conditions for stage X to run? What is the critical path? |
+| `AGENTS/04_pipeline_stages.md` | What does pipeline stage X do? What tables does it read/write? What columns? Where are its logs? |
+| `AGENTS/05_pipeline_dag.md` | Which stage produces table X? What is the execution order? Why didn't stage X run? What are its conditions? What is the critical path? |
 
 ---
 
@@ -94,10 +97,15 @@ source files — use the memory first.
 → Check `playbooks/` for the task type — follow it if it exists
 
 **Tracing an output:**
-→ Search `contracts/*.md` for `Produces:` entries matching the output name
-→ Single match → that is the origin function
-→ Multiple matches → check `Consumed by:` to find the upstream origin
-→ No match → the artifact is undocumented; note this to the user
+First determine what kind of output it is:
+- **Delta table** (named `catalog.schema.table` or matches a known table name) →
+  Search `05_pipeline_dag.md` Data Flow table for it under "Produced by". Then read
+  its producing stage in `04_pipeline_stages.md` for what the stage does.
+- **Function artifact** (a named dataclass, report, file, event) →
+  Search `contracts/*.md` for `Produces:` entries matching the name.
+  Single match → that is the origin function.
+  Multiple matches → check `Consumed by:` to find the upstream origin.
+  No match → the artifact is undocumented; note this to the user.
 
 **Finding a formula or calculation:**
 → Search `02_business_logic.md` by concept name
