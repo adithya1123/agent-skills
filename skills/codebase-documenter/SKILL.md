@@ -35,8 +35,8 @@ Three goals this documentation serves:
 
 | Input | Approach |
 |---|---|
-| Entire repo | Full pipeline — all phases |
-| Directory / module | Phases 3, 3.5, 4, 4.5, 5 — scoped to that directory |
+| Entire repo | Full pipeline — all phases (Phase 3.7 only if notebooks detected) |
+| Directory / module | Phases 3, 3.5, 3.7 (if notebooks), 4, 4.5, 5, 6 — scoped to that directory |
 | Single file | Phase 4 only (contract extraction) |
 | Already-indexed repo, new files added | Phase 7 — incremental update only |
 
@@ -121,7 +121,24 @@ Also check for:
 
 Identify: entry points, data model location, module boundaries.
 
-Hold all findings in working memory — `AGENTS/00_map.md` is written in Phase 4.5
+Also run this to detect Databricks percent-format notebooks:
+
+```bash
+grep -rl "^# %%" . --include="*.py" | grep -v __pycache__ | grep -v .git
+```
+
+If this returns files, Phase 3.7 will run. Hold the file list in memory.
+
+Also run this to detect subdirectory AGENTS/ directories from prior documentation runs:
+
+```bash
+find . -mindepth 2 -type d -name "AGENTS" | grep -v .git | grep -v __pycache__
+```
+
+If this returns directories (e.g., `./libs/AGENTS`), their contracts will be
+consolidated into the root `AGENTS/` in Phase 4.2. Hold the list in memory.
+
+Hold all other findings in working memory — `AGENTS/00_map.md` is written in Phase 4.5
 after contract files exist so the Module Index links are accurate.
 
 ---
@@ -132,10 +149,13 @@ Two outputs. Both serve goals 1 and 2 (explain + debug).
 
 ### Business Logic Index
 
-Scan `utils/`, `helpers/`, `lib/`, `common/`, `core/` for functions whose
-names or docstrings contain domain-significant terms: `calculate_`, `compute_`,
-`derive_`, `score_`, `rate_`, `margin_`, `forecast_`, `roi`, `ltv`, `churn`,
-`threshold`, or any term that maps to a concept in this domain.
+Scan any directory whose name suggests shared or reusable code. Common Python
+conventions include: `utils/`, `util/`, `helpers/`, `helper/`, `lib/`, `libs/`,
+`common/`, `core/`, `shared/`, `services/`, `service/`, `domain/`, `src/`. Skip
+directories that don't exist. Filter by functions whose names or docstrings contain
+domain-significant terms: `calculate_`, `compute_`, `derive_`, `score_`, `rate_`,
+`margin_`, `forecast_`, `roi`, `ltv`, `churn`, `threshold`, or any term that maps
+to a concept in this domain.
 
 For each: extract the formula in plain English, return edge cases, business
 concept it implements, and its `Produces:` output if it generates a named artifact.
@@ -152,6 +172,79 @@ patterns, user-visible symptoms.
 
 Output → `AGENTS/03_narratives.md`
 Format → `references/document-schemas.md#module-narratives`
+
+---
+
+## Phase 3.7: Databricks Notebook Pipeline Extraction
+
+**Runs when**: Phase 3 reconnaissance found `.py` files containing `# %%` markers.
+Skip this phase entirely if none were found.
+
+**Goal**: Produce dense structured summaries of Databricks pipeline notebooks and
+the data flow graph between them. Do NOT load full notebook content — scan for
+landmark lines only. An agent must be able to answer structural, logical, and
+business-level pipeline questions from these two files — stage roles, data flow,
+business purpose, dependencies, and failure signatures. For questions that require
+reading actual transformation code, direct the agent to the specific notebook file
+by name (listed in `04_pipeline_stages.md`) rather than loading all notebooks.
+
+**Scan all notebooks before writing either file.** Collect inputs, outputs, and
+`lib.*` dependencies across the full set of notebooks first, then write
+`04_pipeline_stages.md`, then write `05_pipeline_dag.md`.
+
+**Databricks Workflows note**: Execution order and task dependencies come from the
+Databricks Workflows job definition — not from anything in the notebook code itself.
+Do NOT infer stage sequence from `dbutils.notebook.run()` calls or file names.
+Document stage order as defined by the job.
+
+### Reconnaissance: Workflows job definition
+
+Before scanning notebooks, locate and read the Databricks Workflows job definition
+(usually `jobs/*.json`, `jobs/*.yml`, `.databricks/bundle.yml`, or a `databricks.yml`
+at the repo root). This is the authoritative source for:
+- Stage execution order and task dependencies
+- Conditional task execution rules (run-if conditions, task success/failure branches)
+- Widget default values per environment (dev vs prod job configs)
+- Cluster assignment per task
+
+If no job definition file is found, note this — stage order will be inferred from
+notebook filenames and must be manually verified.
+
+### Landmark scanning approach (Azure Databricks / Spark)
+
+For each notebook, scan for these patterns to build the summary skeleton:
+- `spark.read`, `spark.table(`, `.load(`, `spark.sql(` → Delta table inputs
+- `.write`, `.saveAsTable(`, `.insertInto(`, `MERGE INTO` → Delta table outputs
+- `mlflow.start_run`, `mlflow.log_`, `mlflow.register_model` → MLflow artifacts
+- `dbutils.widgets.get(` → runtime widget parameters
+- `import lib.`, `import libs.`, `from lib import`, `from libs import` → lib.* dependencies (cross-reference existing contracts)
+- `display(` → significant output checkpoints
+- `# %% [markdown]` cells → natural section headers, use as structure
+
+### Output 1: Stage docs
+
+One entry per notebook. Each entry: stage name and pipeline role, inputs (tables,
+widget params, upstream deps), outputs (tables written, models registered, artifacts),
+`lib.*` imports linked to existing contracts, cell-level summary of significant
+operations only (not every cell), and failure signature.
+
+Output → `AGENTS/04_pipeline_stages.md`
+Format → `references/document-schemas.md#pipeline-stage`
+
+### Output 2: DAG
+
+Cross-notebook execution graph: ordered stage sequence, data flow table (which tables
+each stage produces vs. consumes, traced by table name across notebooks), `lib.*`
+dependency map per stage, and critical path (stages whose failure blocks all
+downstream work because their output tables have multiple consumers).
+
+Output → `AGENTS/05_pipeline_dag.md`
+Format → `references/document-schemas.md#pipeline-dag`
+
+**What is deliberately excluded from Phase 3.7:**
+- Playbooks — running notebooks is a Databricks Jobs concern, not a code task
+- Hazard map entries — covered by existing `lib.*` module hazards
+- Function contracts — notebooks export no callable interface
 
 ---
 
@@ -177,6 +270,62 @@ Format → `references/document-schemas.md#contract-note`
 
 ---
 
+## Phase 4.2: Subdirectory Documentation Consolidation
+
+**Runs when**: Phase 3 found subdirectory `AGENTS/` directories. Skip entirely if none.
+
+**Goal**: Merge all AGENTS/ documents from subdirectory runs into the root `AGENTS/`
+— preserving every documented detail, updating path references, and leaving useful
+local references in the subdirectory for context that is specifically valuable there.
+
+For each subdirectory AGENTS/ found (e.g., `libs/AGENTS/`):
+
+### Step 1: Merge contracts
+
+Read all existing contracts from `{subdir}/AGENTS/contracts/*.md` in full.
+These were written with focused knowledge of that module — do not discard them.
+
+Merge into root `AGENTS/contracts/`:
+- Module not yet in root → copy content; update file paths to repo-root-relative
+  (e.g., `utils.py:42` inside `libs/` becomes `libs/utils.py:42`)
+- Module already in root from Phase 4 → merge both:
+  - Functions only in subdir contract → add to root file
+  - Functions in both → keep more detailed entry; pull in any failure modes,
+    invariants, or non-obvious behavior the root version is missing
+  - Update all file paths to repo-root-relative in the merged result
+
+### Step 2: Merge business logic, narratives, and hazards
+
+Read `{subdir}/AGENTS/02_business_logic.md`, `03_narratives.md`, `01_hazards.md`.
+
+For each document:
+- Entries not yet in the root equivalent → add them, updating file paths
+- Entries in both → keep the more detailed version; never truncate an `Expected range`,
+  failure mode, or hazard that appears in the subdir version but not the root version
+
+### Step 3: Write the subdirectory redirect
+
+Write `{subdir}/AGENTS.md` — tells agents and humans where the full docs live and
+confirms no detail was dropped during consolidation.
+Format → `references/document-schemas.md#subdirectory-redirect`
+
+### Step 4: Leave condensed local contract references
+
+For each merged contract, rewrite `{subdir}/AGENTS/contracts/{module}.md` as a
+condensed local reference. This is not a duplicate — it is a local-context supplement.
+It should contain:
+- A pointer to the canonical root contract: `→ Full contract: ../../AGENTS/contracts/{module}.md`
+- Any detail that is specifically useful when working inside the subdirectory:
+  local-relative file paths for quick navigation, local test invocation patterns,
+  subdir-specific edge cases or import conventions
+
+Format → `references/document-schemas.md#subdirectory-local-contract`
+
+Agents and humans working inside the subdirectory get useful local context. The root
+`AGENTS/contracts/` remains the authoritative single source of truth.
+
+---
+
 ## Phase 4.5: Finalize Structural Map
 
 **Goal**: Write `AGENTS/00_map.md` now that the contract files from Phase 4 exist.
@@ -186,6 +335,11 @@ points, module list, data model). For the "Key contracts" column in the Module
 Index, list only `→ contracts/{module}.md` links that were **actually created**
 in Phase 4. Do not speculate or pre-fill links for contract files that do not
 exist yet. Modules with no contract file: write `—` in the Key contracts column.
+
+If Phase 3.7 ran, also populate the Environment Configuration section using the
+Workflows job definition data collected during that phase — catalog names by
+environment, cluster policy, Key Vault scope, and widget defaults that differ
+between dev and prod.
 
 Output → `AGENTS/00_map.md`
 Format → `references/document-schemas.md#structural-map`
@@ -212,16 +366,26 @@ Format → `references/document-schemas.md#hazard-map`
 
 **Goal**: Step-by-step instructions for the most common agent tasks in this repo.
 
-Always include:
+Start by identifying what kind of repo this is, then pick the right default set:
+
+**If primarily a Databricks notebook pipeline** (Phase 3.7 ran and most code is notebooks):
+1. Add a pipeline stage
+2. Add a transformation to an existing stage
+3. Trigger a Workflows job manually
+4. Run a single stage manually in Databricks
+5. Promote a model from staging to production
+
+**If a web service / general Python project**:
 1. Add a new API endpoint
 2. Add a database migration
 3. Add a new test
 4. Run the test suite
 5. Deploy / build
 
-Add more playbooks for any task that is codebase-specific, non-obvious from the
-directory structure, or has been a source of friction (e.g. "seed the local DB",
-"add a background job", "regenerate API client").
+In both cases, add more playbooks for any task that is codebase-specific,
+non-obvious from the directory structure, or has been a source of friction
+(e.g. "seed the local DB", "add a background job", "regenerate API client",
+"add a new model feature").
 
 Each playbook: exact commands, exact files to create/modify, validation step,
 common failure modes + fixes.
@@ -241,6 +405,8 @@ When code changes:
 - New CLI command / Makefile target → update playbook
 - Renamed module → update `00_map.md` + `AGENTS.md` module index + its contract filename + all cross-references that point to it
 - Module removed → remove from `00_map.md`, `AGENTS.md`, its contract file, and any cross-references pointing to it
+- New notebook stage added to pipeline → create entry in `04_pipeline_stages.md` (landmark scan only); update Stage Sequence and Data Flow table in `05_pipeline_dag.md`; re-evaluate critical path
+- Notebook stage removed → remove its entry from `04_pipeline_stages.md`; update Stage Sequence, Data Flow, and critical path in `05_pipeline_dag.md`
 
 Procedure: read changed files → identify affected AGENTS/ documents →
 surgical edits only → update `last_updated` timestamp by running
@@ -273,6 +439,8 @@ AGENTS/
 ├── 01_hazards.md                 # What not to do
 ├── 02_business_logic.md          # What things calculate / mean
 ├── 03_narratives.md              # What modules do and why
+├── 04_pipeline_stages.md         # Per-notebook stage docs (notebooks only)
+├── 05_pipeline_dag.md            # Cross-notebook data flow graph (notebooks only)
 ├── contracts/
 │   └── {module}.md               # How to call things correctly
 └── playbooks/
@@ -295,11 +463,14 @@ Commit both `AGENTS.md` and the `AGENTS/` directory to version control.
 - [ ] `01_hazards.md` — every hazard specific ("never call X" not "be careful")
 - [ ] `02_business_logic.md` — every domain calculation has formula in plain English; deduplication pass against contracts done (no entry fully duplicates a contract note)
 - [ ] `03_narratives.md` — every module has a "what it does NOT do" section and a failure signature
+- [ ] `04_pipeline_stages.md` — (if notebooks present) every stage has inputs, outputs, lib.* links, and failure signature
+- [ ] `05_pipeline_dag.md` — (if notebooks present) intermediate tables appear in both Produced by and Consumed by columns; source tables (external inputs) appear only in Consumed by; terminal outputs appear only in Produced by; no intermediate table is missing; critical path identified
 - [ ] `contracts/` — every note has something non-obvious; omit if obvious from signature
 - [ ] `contracts/` — key functions have `Failure modes:` populated
 - [ ] `playbooks/` — every playbook mentally traced end-to-end
 - [ ] `00_agent_instructions.md` — memory index matches files actually produced
 - [ ] No document exceeds ~150 lines (split by module if needed)
+- [ ] Subdirectory redirect `AGENTS.md` written in each consolidated subdirectory (if any)
 
 Read `references/document-schemas.md` for all output format specifications.
 Read `references/memory-taxonomy.md` for the theoretical framework.

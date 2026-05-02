@@ -103,6 +103,8 @@ _Last updated: {DATE}_
 | `AGENTS/03_narratives.md` | Plain-English module descriptions |
 | `AGENTS/contracts/` | Per-module call contracts and traceability |
 | `AGENTS/playbooks/` | Step-by-step task instructions for this repo |
+| `AGENTS/04_pipeline_stages.md` | Per-notebook stage docs — role, business purpose, inputs, outputs, lib.* deps, failure sig *(if notebooks present)* |
+| `AGENTS/05_pipeline_dag.md` | Cross-notebook data flow, critical path, Workflows execution order *(if notebooks present)* |
 
 ## Module index
 
@@ -139,6 +141,14 @@ _Last updated: {DATE}_
 - **Test command**: `{command}`
 - **Deploy command**: `{command}`
 
+## Environment Configuration
+_(include this section for Databricks repos; omit for standard web service repos)_
+- **Dev catalog**: `{dev_catalog}` | **Prod catalog**: `{prod_catalog}`
+- **Cluster policy**: `{policy_name}` (DBR `{version}`, `{node_type}`)
+- **Key Vault scope**: `{scope_name}` — secrets: `{secret_name}`, `{secret_name}`
+- **Widget defaults that differ by env**: `{widget_name}` — dev: `{value}`, prod: `{value}`
+- **Known version sensitivity**: `{library}=={version}` required — {what breaks otherwise}
+
 ## Module Index
 
 | Module | Path | Purpose | Key contracts |
@@ -157,6 +167,8 @@ Include the primary keys and the most important foreign key constraint.
 → For full contracts: `contracts/`
 → For hazards: `01_hazards.md`
 → For task playbooks: `playbooks/`
+→ For pipeline stages: `04_pipeline_stages.md`   (if present)
+→ For pipeline DAG: `05_pipeline_dag.md`           (if present)
 ```
 
 ---
@@ -286,6 +298,10 @@ Revenue uses {which revenue table/field}.
 
 **Produces**: `CustomerROI` dataclass — consumed by executive dashboard and `/api/v2/roi`
 
+**Expected range**: {normal output range and what deviations signal}
+_(e.g. "AUC 0.78–0.87 in prod; below 0.75 indicates upstream data issue not model issue.
+F1 typically 0.45–0.60 due to 8% class imbalance.")_
+
 **Failure modes**:
 - `MissingCostDataError` when cost table has no entry for customer — means
   customer was onboarded before cost tracking was introduced (pre-2023 cohort)
@@ -303,6 +319,12 @@ Revenue uses {which revenue table/field}.
 - Any function whose docstring contains business domain terms your team uses
 - Any constant or lookup table that encodes business rules (tax rates, tier thresholds, etc.)
 - Data transformations that produce named business artifacts
+
+**`Expected range` field guidance:** Populate this for any metric or score that a human
+might describe as "seeming wrong." Include the healthy range, what values outside it
+indicate, and whether the range is expected to shift seasonally or with model retraining.
+This is the difference between an agent saying "here is the formula" and "here is the
+formula and your current value of X is outside the normal range, which suggests Y."
 
 **What NOT to index here:**
 - Pure infrastructure utilities (string formatting, date parsing, HTTP helpers)
@@ -528,6 +550,16 @@ or explain why something works the way it does.
 Step-by-step instructions for common tasks, specific to this codebase's conventions.
 Always check here before improvising an approach.
 
+**`AGENTS/04_pipeline_stages.md`** — answers *what a pipeline stage does and produces* *(present if repo uses Databricks notebooks)*
+Per-stage: business role, inputs consumed, outputs written, lib.* dependencies, key
+operations summary, and failure signature. Use this to understand any individual
+stage without reading the raw notebook.
+
+**`AGENTS/05_pipeline_dag.md`** — answers *how data flows between stages and what the critical path is* *(present if repo uses Databricks notebooks)*
+Cross-stage data flow (which tables flow where), Workflows execution order, lib.*
+dependency map, and which stages are critical path. Use this to reason about
+pipeline-level questions and impact of stage failures.
+
 ## How to reason
 
 Map any question to the document type that answers it, read that document, then
@@ -542,6 +574,12 @@ document types cover the full question space:
 - *How do I add X / deploy / run tests in this repo?* → `playbooks/`
 - *What produced output X / what calls function X?* → `contracts/` (search `Produces:` / `Consumed by:`)
 - *Why did X fail / what does this error mean?* → `contracts/` (search `Failure modes:`), then `01_hazards.md`, then `03_narratives.md` (failure signature)
+- *What does pipeline stage X do / what is its business purpose?* → `04_pipeline_stages.md`
+- *What tables does stage X read or write?* → `04_pipeline_stages.md`
+- *Which stage produces table X / what stage consumes table X?* → `05_pipeline_dag.md`
+- *What is the pipeline execution order / what depends on what?* → `05_pipeline_dag.md`
+- *What breaks if stage X fails / what is the critical path?* → `05_pipeline_dag.md`
+- *What does the transformation logic in stage X actually do at the cell level?* → read the specific notebook file directly (filename listed in `04_pipeline_stages.md`)
 
 For any question not listed above: identify which category it belongs to and go
 to the corresponding document. If genuinely ambiguous, read `00_map.md` first —
@@ -556,6 +594,8 @@ Update the memory if your task introduced any of the following:
 - A new `# HACK:`, `# WARNING:`, or `# NOTE:` comment → add to `01_hazards.md`
 - A new CLI command or Makefile target → update the relevant playbook
 - A renamed or moved module → update `00_map.md`
+- A new or modified notebook pipeline stage → update `04_pipeline_stages.md` and `05_pipeline_dag.md`
+- A Delta table renamed → update the table name everywhere in `04_pipeline_stages.md` and `05_pipeline_dag.md`
 ```
 
 ### The description field is the trigger
@@ -583,6 +623,230 @@ include relevant terminology — "Lakeflow pipelines", "Nielsen RMS data",
 ## {DATE}
 - Structural map updated: new `notifications/` module added
 ```
+
+---
+
+## pipeline-stage
+
+**File**: `AGENTS/04_pipeline_stages.md`
+
+One file, one section per notebook. Stages are listed in pipeline execution order.
+Produced by scanning landmark lines — not by loading full notebook content.
+
+```markdown
+# Pipeline Stages
+_Last updated: {DATE}_
+
+Linear pipeline execution order — stages run top to bottom.
+For data flow between stages see `05_pipeline_dag.md`.
+For lib.* module behavior see `contracts/`.
+
+---
+
+## {StageName} (`{notebook_filename}.py`)
+
+**Role**: One sentence — what this stage does in pipeline terms.
+
+**Runs when**: _(omit if this stage always runs unconditionally)_
+`{upstream_stage}` succeeds AND Workflows condition `{condition_expression}` passes.
+
+**Inputs**:
+- Delta table: `{catalog}.{schema}.{table}`
+  - Columns read: `{col1}`, `{col2}`, `{col3}` _(list only columns this stage actually uses)_
+  - Filter applied: `{filter_condition}` _(e.g. WHERE is_test=true — omit if full table)_
+- Widget param: `{param_name}` — {what it controls, default if any}
+
+**Outputs**:
+- Delta table: `{catalog}.{schema}.{table}`
+  - Grain: `{entity}` — {one row per what, e.g. "one row per customer_id"}
+  - Key columns: `{col1}` ({type}, {meaning}), `{col2}` ({type}, {meaning})
+  - Partition: `{partition_column}` _(write `none — full overwrite` if applicable)_
+  - Sanity check: `{what normal looks like}` _(e.g. "~2M rows; if < 500k, upstream filter failed")_
+- MLflow: model `{model_name}` in experiment `{experiment_path}` — {version strategy or artifact description}
+
+**lib.* dependencies**:
+- `lib.{module}` — {why this stage uses it} → `contracts/{module}.md`
+
+**Key operations** (significant cells only — omit boilerplate):
+1. [§ {Markdown section header}] {What this cell block does} — {inline or via `lib.module.function()`}
+2. [§ {Markdown section header}] {Next significant operation}
+
+**Failure signature**:
+- `{ErrorType}` / `{log pattern}` — means {root cause at pipeline level}
+- Downstream symptom: {what a reader of a downstream stage would observe}
+- **Log location**: cluster driver logs (Workflows UI → run → driver logs tab);
+  MLflow run at `{experiment_path}`; _(add custom sink path if applicable)_
+
+→ See also: `05_pipeline_dag.md`, `contracts/{relevant_module}.md`
+
+---
+
+## {NextStage} (`{notebook_filename}.py`)
+...
+```
+
+**Rules:**
+- Omit any field that has nothing to say (e.g. no widget params → omit that line; no conditions → omit `Runs when`).
+- `Inputs` columns read: list only the columns this stage actually uses — not the full table schema. An agent needs to know "does this stage depend on column X?" without reading code.
+- `Outputs` key columns: list the columns that matter for downstream stages or debugging — not every column. Grain and Sanity check are required.
+- "Key operations" is a summary of intent, not a cell-by-cell transcript. Target 3–7 items. Each item must: reference its `[§ Markdown section header]`, state whether logic is inline or in a named `lib.module.function()` call. This lets an agent jump to the right section of the notebook if code-read is needed — rather than scanning the whole file.
+- Table names must use full Unity Catalog 3-part names (`catalog.schema.table`) — they are the join key with `05_pipeline_dag.md`.
+- Every `lib.*` import must link to its contract file. If no contract exists, flag it.
+- Do not document upstream execution dependencies here — execution order and task dependencies live in `05_pipeline_dag.md` and are defined by the Databricks Workflows job, not the notebook code.
+
+---
+
+## pipeline-dag
+
+**File**: `AGENTS/05_pipeline_dag.md`
+
+Cross-notebook execution graph. Answers: what order do stages run, what data flows
+where, which lib.* modules are shared, and what breaks everything downstream if it fails.
+
+```markdown
+# Pipeline DAG
+_Last updated: {DATE}_
+
+Execution is linear — stages run in the order listed below.
+A **critical** stage produces tables consumed by multiple downstream stages;
+its failure blocks all of them.
+
+## Stage Sequence
+
+Stage order reflects the Databricks Workflows task dependency graph — verify against
+the job JSON/YAML definition, not notebook filenames or alphabetical order.
+
+| Order | Stage | Notebook | Role | Condition |
+|-------|-------|----------|------|-----------|
+| 1 | {StageName} | `{notebook}.py` | {one-line role} | always |
+| 2 | {StageName} | `{notebook}.py` | {one-line role} | always |
+| 3 | {StageName} | `{notebook}.py` | {one-line role} | if `{upstream}` succeeded AND `{condition}` |
+| ... | | | | |
+
+## Data Flow
+
+| Table | Produced by | Consumed by |
+|-------|-------------|-------------|
+| `{catalog}.{schema}.{table}` | `{stage}` | `{stage}`, `{stage}` |
+| `{catalog}.{schema}.{table}` | `{stage}` | `{stage}` |
+
+## lib.* Dependency Map
+
+| lib module | Used by stages |
+|------------|----------------|
+| `lib.{module}` | `{stage}`, `{stage}` |
+
+## Critical Path
+
+Stages whose failure blocks downstream work:
+
+- **{StageName}** — produces `{table}`, consumed by {N} downstream stages:
+  `{stage}`, `{stage}`. All halt if this stage fails.
+
+→ See also: `04_pipeline_stages.md`, `contracts/`
+```
+
+**Rules:**
+- Table names in the Data Flow table must exactly match those in `04_pipeline_stages.md`.
+- A table with only one consumer is not critical path — only list tables with 2+ consumers.
+- If a stage has no lib.* dependencies, omit it from the lib.* Dependency Map.
+
+---
+
+## subdirectory-redirect
+
+**File**: `{subdir}/AGENTS.md` (e.g., `libs/AGENTS.md`)
+
+Written during Phase 4.2 when a subdirectory's prior AGENTS/ documentation is
+consolidated into the root AGENTS/. Tells both agents and humans that consolidation
+occurred, where the docs now live, and confirms no detail was dropped.
+
+```markdown
+# Agent Memory — Consolidated
+
+The agent memory that was in `{subdir}/AGENTS/` has been consolidated into the
+root `AGENTS/` directory as part of full-repo documentation.
+
+_Consolidated: {DATE}_
+_Previously documented: {list of contract files that were here}_
+
+## Where the docs are now
+
+All contracts, narratives, and hazard notes from this directory are preserved
+in the root `AGENTS/` with updated file paths.
+
+| Was here | Now at |
+|----------|--------|
+| `AGENTS/contracts/{module}.md` | `{relative_path_to_root}/AGENTS/contracts/{module}.md` |
+
+## What changed during consolidation
+
+- File paths updated from subdirectory-relative to repo-root-relative
+- Any gaps between this module's prior docs and Phase 4 findings were merged
+- No documented behavior, failure modes, or invariants were removed
+
+→ For all contracts covering `{subdir}/` modules: `{relative_path_to_root}/AGENTS/contracts/`
+→ For the full memory index: `{relative_path_to_root}/AGENTS/00_agent_instructions.md`
+```
+
+**Rules:**
+- `{relative_path_to_root}` must be a relative path that works from the subdirectory
+  (e.g., for `libs/AGENTS.md` pointing to root, use `../AGENTS/contracts/feature_utils.md`)
+- List every contract file that was previously in `{subdir}/AGENTS/contracts/` so an agent
+  or human can verify nothing was silently dropped
+- Keep it short — this is a redirect, not a summary of the memory
+
+---
+
+## subdirectory-local-contract
+
+**File**: `{subdir}/AGENTS/contracts/{module}.md` (e.g., `libs/AGENTS/contracts/feature_utils.md`)
+
+Written during Phase 4.2 step 4. This is a condensed local-context reference that
+sits alongside the full root contract — not a duplicate. It gives agents and humans
+working inside the subdirectory locally-relevant shortcuts without needing to navigate
+to the root. The root contract remains authoritative.
+
+```markdown
+# Local Reference: {Module Name}
+
+→ **Full contract**: `../../AGENTS/contracts/{module}.md`
+_This file is a local supplement. The root contract is the single source of truth._
+
+---
+
+## Local file paths
+
+| Function | File (subdir-relative) |
+|----------|------------------------|
+| `{function_name}` | `{module}.py:{line}` |
+
+## Local import convention
+
+```python
+{how this module is imported within the subdirectory, e.g. `from libs import feature_utils`}
+```
+
+## Local test invocation
+
+```bash
+{command to test just this module in isolation, if different from repo-level test command}
+```
+
+## Subdir-specific notes
+
+{Any edge cases, conventions, or invariants that only matter when working in this
+subdirectory context — e.g. mock dependencies used in isolation testing, local
+config file paths, module-level singletons initialized differently when not in
+full pipeline context.}
+```
+
+**Rules:**
+- Only include sections that have genuinely local-specific content. If the local import
+  convention matches the root convention, omit that section.
+- Never duplicate function-level behavior, failure modes, or formulas from the root contract.
+  Those belong only in the root. The value here is navigation shortcuts and isolation context.
+- Keep under 40 lines — if it's getting longer, the content probably belongs in the root contract.
 
 ---
 
