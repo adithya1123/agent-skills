@@ -510,7 +510,9 @@ Format → `references/document-schemas.md#hazard-map`
 
 ## Phase 6: Task Playbooks
 
-**Goal**: Step-by-step instructions for the most common agent tasks in this repo.
+**Goal**: Step-by-step instructions for the most common agent tasks in this repo,
+plus direct paths for recurring explanations, debugging flows, symptoms, or
+artifact-tracing questions.
 
 Start by identifying what kind of repo this is, then pick the right default set:
 
@@ -528,13 +530,15 @@ Start by identifying what kind of repo this is, then pick the right default set:
 4. Run the test suite
 5. Deploy / build
 
-In both cases, add more playbooks for any task that is codebase-specific,
-non-obvious from the directory structure, or has been a source of friction
-(e.g. "seed the local DB", "add a background job", "regenerate API client",
-"add a new model feature").
+In both cases, add more playbooks for any task, explanation, symptom, or workflow
+that is codebase-specific, non-obvious from the directory structure, or has been
+a source of friction (e.g. "seed the local DB", "add a background job",
+"regenerate API client", "add a new model feature", "explain customer score",
+"debug missing feature output").
 
-Each playbook: exact commands, exact files to create/modify, validation step,
-common failure modes + fixes.
+Each playbook: when to use it, a fast path, why that path is the direct route,
+the solution or explanation learned, exact commands or source landmarks,
+validation step, common failure modes + fixes, and misleading paths to avoid.
 
 Output → `AGENTS/playbooks/{task_name}.md`
 Format → `references/document-schemas.md#playbook`
