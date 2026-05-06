@@ -64,7 +64,7 @@ corresponding section heading within the single file instead of a separate docum
 | `AGENTS/02_business_logic.md` | What is the formula for X? How is X calculated? What is the expected range for this metric? |
 | `AGENTS/03_narratives.md` | What does module X do? Why does it exist? What does it NOT handle? |
 | `AGENTS/contracts/{module}.md` | How do I call X? What does it return? What produced output Y? What calls Z? |
-| `AGENTS/playbooks/{task}.md` | How do I add X / run tests / deploy in this specific repo? |
+| `AGENTS/playbooks/{task}.md` | Task playbooks for adding features/functions, running tests, deploying, migrations, and known direct paths for debugging, explanations, symptoms, workflows, and artifact tracing. |
 | `AGENTS/04_pipeline_stages.md` | What does pipeline stage X do? What tables does it read/write? What columns? Where are its logs? |
 | `AGENTS/05_pipeline_dag.md` | Which stage produces table X? What is the execution order? Why didn't stage X run? What are its conditions? What is the critical path? |
 
@@ -74,6 +74,16 @@ corresponding section heading within the single file instead of a separate docum
 
 Any question maps to one of these categories. Do not default to reading
 source files — use the memory first.
+
+Before category-specific routing, check root `AGENTS/playbooks/` for both
+traditional task names and known-path cues: add feature/function, run tests,
+deploy, migration, task, symptom, workflow, artifact/table/model name, module
+name, error text, business concept, or explanation target.
+
+If a plausible playbook exists, read it before `00_map.md`, `memory_index.md`,
+contracts, narratives, pipeline docs, or source. If its `Use when` section
+matches the current task, follow its `Fast path`. Only continue to the routing
+below when no relevant playbook exists.
 
 **For deep repos with `AGENTS/memory_index.md`:**
 → Start with `00_map.md` for root orientation
@@ -117,9 +127,6 @@ for inline logic, read the exact notebook section and the matching
 → Read `01_hazards.md` before writing anything
 → Read `contracts/` for the module you're working in; if the module is subsystem-local,
 read the subsystem's canonical `AGENTS/contracts/{module}.md`
-→ Check root `AGENTS/playbooks/` for a matching task, symptom, workflow, artifact,
-or explanation path. If a relevant playbook exists, read it and follow its known
-path before opening broader source files.
 
 **Tracing an output:**
 First determine what kind of output it is:
