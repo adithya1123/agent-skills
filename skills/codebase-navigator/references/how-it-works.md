@@ -1,13 +1,17 @@
-# Two-Skill System: How It Works
+# Agent Memory Skills: How It Works
 
 ## Overview
 
-Two skills, one shared memory. Clear separation of concerns.
+Two core skills share repo-local memory, with an optional manual capture skill for
+turning solved explorations into playbooks. Clear separation of concerns.
 
 ```
 codebase-documenter    →    AGENTS/    ←    codebase-navigator
   (generation)           (shared memory)      (navigation)
   runs once               lives in repo        runs always
+
+playbook-capture      →    AGENTS/playbooks/
+  (manual capture)         (known direct paths)
 ```
 
 ## codebase-documenter
@@ -43,7 +47,7 @@ landmarks or the task requires implementation-level detail, then answers.
 
 ## The shared contract: AGENTS/00_agent_instructions.md
 
-This file is the handshake between the two skills.
+This file is the handshake between the documenter and navigator.
 
 - `codebase-documenter` generates it last, after all other documents exist,
   so its memory index is always accurate
@@ -56,8 +60,9 @@ If this file does not exist → navigator tells the user to run the documenter.
 
 ## Installation
 
-Both skills follow the open Agent Skills standard. Install both in the same
-skills directory for your agent runner:
+The skills follow the open Agent Skills standard. Install the core documenter
+and navigator together, and install `playbook-capture` when you want manual
+exploration capture.
 
 **Claude Code** (project-scoped):
 ```
@@ -86,10 +91,11 @@ Workspace/.assistant/skills/
     └── SKILL.md
 ```
 
-The agent runner loads both skills at startup. It reads their descriptions
+The agent runner loads installed skills at startup. It reads their descriptions
 and knows: documenter triggers on generation requests, navigator triggers
-on code questions. They never conflict because their descriptions have
-non-overlapping trigger conditions.
+on code questions, and playbook-capture triggers only on explicit capture
+requests. They do not conflict because their descriptions have non-overlapping
+trigger conditions.
 
 ## For teams
 

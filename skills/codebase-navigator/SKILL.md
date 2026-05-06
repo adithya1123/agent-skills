@@ -117,7 +117,9 @@ for inline logic, read the exact notebook section and the matching
 → Read `01_hazards.md` before writing anything
 → Read `contracts/` for the module you're working in; if the module is subsystem-local,
 read the subsystem's canonical `AGENTS/contracts/{module}.md`
-→ Check `playbooks/` for the task type — follow it if it exists
+→ Check root `AGENTS/playbooks/` for a matching task, symptom, workflow, artifact,
+or explanation path. If a relevant playbook exists, read it and follow its known
+path before opening broader source files.
 
 **Tracing an output:**
 First determine what kind of output it is:

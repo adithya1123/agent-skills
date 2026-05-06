@@ -612,11 +612,20 @@ _Last updated: {DATE}_
 
 **File**: `AGENTS/playbooks/{task_name}.md`
 
+Playbooks document known direct paths through this repo. They may cover code
+changes, debugging workflows, recurring symptoms, artifact tracing, or repeated
+explanations. Keep them focused on the reusable route, not the full exploration
+history. For captured explorations, include why the path was taken and the
+solution or explanation learned.
+
 ```markdown
-# Playbook: {Task Name}
+# Playbook: {Task or Explanation Name}
 _Last updated: {DATE}_
 
-## Steps
+## Use when
+{When this playbook applies: task, symptom, workflow, artifact, or explanation.}
+
+## Fast path
 
 1. **{Step title}**
    ```bash
@@ -630,6 +639,15 @@ _Last updated: {DATE}_
 2. **{Next step}**
    ...
 
+## Why this path
+{Why these docs/files are the direct route and what broader searches they replace.}
+
+## Solution explanation
+{The answer, fix, or codebase behavior learned from the exploration.}
+
+## Source landmarks
+- `{file}`: `{function, section, class, config key, or test}`
+
 ## Validation
 Run `{test command}` — expect `{what success looks like}`.
 
@@ -637,6 +655,9 @@ Run `{test command}` — expect `{what success looks like}`.
 
 **{Symptom}**: {Fix}
 **{Symptom}**: {Fix}
+
+## Avoid
+{Wrong broad searches, misleading files, or stale assumptions to avoid.}
 
 → See also: `contracts/{relevant_module}.md`, `01_hazards.md#{relevant_section}`
 ```

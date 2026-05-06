@@ -1,10 +1,12 @@
 # Agent Skills Guide
 
-This repo contains two companion skills for building and using structured agent
-memory in codebases:
+This repo contains companion skills for building, using, and extending structured
+agent memory in codebases:
 
 - `codebase-documenter` writes the memory.
 - `codebase-navigator` reads the memory to answer questions and guide code work.
+- `playbook-capture` manually records a solved exploration as a reusable root
+  playbook.
 
 The intended outcome is a repo-local `AGENTS/` memory layer that helps agents
 understand a codebase without repeatedly scanning everything from scratch.
@@ -29,7 +31,7 @@ These skills create a structured memory layer that answers:
 The goal is not to replace source code. The goal is to route agents to the right
 docs and then to the exact source files only when implementation detail is needed.
 
-## The Two-Skill Model
+## The Skill Model
 
 ### `codebase-documenter`
 
@@ -56,6 +58,14 @@ Use this skill when asking questions or making changes in a documented repo.
 It reads the memory first, routes to the right document, and reads source only
 when the docs point to exact source landmarks or the task needs implementation
 detail.
+
+### `playbook-capture`
+
+Use this skill manually after a useful exploration, solution, debugging path, or
+explanation should be saved for next time.
+
+It writes or updates concise playbooks in `AGENTS/playbooks/` so future navigator
+runs can follow the known path before broad source exploration.
 
 ## Core Concepts
 
@@ -133,7 +143,8 @@ Examples:
 
 ### Playbooks
 
-Playbooks are step-by-step instructions for common tasks.
+Playbooks are step-by-step instructions for common tasks and known direct paths
+for recurring explanations, debugging flows, symptoms, or artifact tracing.
 
 Examples:
 
@@ -143,9 +154,11 @@ Examples:
 - promote a model
 - deploy a bundle
 - update agent memory after a refactor
+- explain how a recurring business concept is produced
+- debug a repeated missing-output symptom
 
-Playbooks should include exact commands, files to edit, validation steps, and
-common failure modes.
+Playbooks should include when to use them, the fast path, exact commands or
+source landmarks, validation steps, common failure modes, and paths to avoid.
 
 ## Databricks Project Structure
 
