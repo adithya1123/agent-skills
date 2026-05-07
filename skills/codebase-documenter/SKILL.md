@@ -35,12 +35,20 @@ Three goals this documentation serves:
 
 | Input | Approach |
 |---|---|
-| Entire repo | Full pipeline — all phases (Phase 3.7 only if notebooks detected) |
-| Directory / module | Phases 3, 3.5, 3.7 (if notebooks), 4, 4.5, 5, 6 — scoped to that directory |
-| Single file | Phase 4 only (contract extraction) |
+| Entire repo | Full pipeline — all phases (Phase 3.7 only if notebooks detected), then emit either flat or directory format |
+| Directory / module | Run the pipeline scoped to that directory. If root memory exists, update the owning root/subsystem docs. If no root memory exists, create local memory inside that directory. |
+| Single file | Extract the file contract and update the nearest existing memory. If no memory exists, create a local entry point for that file's scope instead of leaving an orphan contract. |
 | Already-indexed repo, new files added | Phase 7 — incremental update only |
 
 Ask if unclear: *"Should I document the whole repo or a specific part?"*
+
+**Entry-point guarantee**: every successful run must leave `codebase-navigator`
+with a loadable entry point at the documented scope:
+- Flat format → frontmatter `AGENTS.md`
+- Directory format → `AGENTS/00_agent_instructions.md`
+
+Do not produce standalone contract files, business-logic notes, or scoped docs
+that are unreachable from one of those entry points.
 
 ---
 
@@ -58,10 +66,12 @@ and any time a document is revised.
 
 ---
 
-## Phase 2: Choose Output Format
+## Phase 2: Choose Output Format Hypothesis
 
-**Before doing any file reading, decide whether to produce a flat `AGENTS.md` or
-the full `AGENTS/` directory structure.**
+**Before deep source reading, choose an initial hypothesis: flat `AGENTS.md` or
+full `AGENTS/` directory. This is not final.** Phase 3 reconnaissance and the
+extraction phases may promote a scope from flat to directory format when the
+code proves more important or complex than it first looked.
 
 Use the flat format when ALL of the following are true:
 - Fewer than ~15 source files in scope
@@ -92,14 +102,17 @@ This applies broadly to pipeline helpers, service/domain modules, ML helpers,
 rules engines, data transformations, and any module whose behavior is reused
 outside its own folder.
 
-**If flat format**: produce a single `AGENTS.md` at the repo root using the
-`agents-entry` schema from `references/document-schemas.md`. This file includes
-YAML frontmatter so the navigator can load it as the agent memory entry point.
-`AGENTS.md` in flat format IS the agent entry point — stop here. Do not continue
-to Phase 3 or the Final Step.
+**If the final format is flat**: after scoped reconnaissance and extraction,
+produce a single `AGENTS.md` at the documented scope using the `agents-entry`
+schema from `references/document-schemas.md`. This file includes YAML
+frontmatter so the navigator can load it as the agent memory entry point.
+Fill its module map, hazards, key contracts, business logic, and common task
+sections from the facts gathered during the scoped pipeline. `AGENTS.md` in
+flat format IS the agent entry point. Do not generate `AGENTS/` or run the
+directory-format Final Step for that scope.
 
-**If full directory**: check whether an `AGENTS.md` already exists at the repo
-root. Two sub-cases:
+**If the final format is full directory**: check whether an `AGENTS.md` already
+exists at the documented scope. Two sub-cases:
 
 - **No existing `AGENTS.md`**: create one after the full pipeline completes,
   using the `agents-readme` schema. This is the human-readable index for the
@@ -113,6 +126,19 @@ root. Two sub-cases:
 
 In both cases `AGENTS.md` remains a first-class file — always current, always
 useful to a human browsing the repo. Then continue to Phase 3.
+
+### Scoped output behavior
+
+For directory/module and single-file requests:
+- If root or subsystem memory already exists and clearly owns the scope, update
+  that memory. Keep the scoped change reachable through its existing entry point.
+- If no owning memory exists, create local memory at the requested scope or the
+  nearest sensible containing directory. Use flat `AGENTS.md` only for small,
+  self-contained scopes. Use local `AGENTS/` when stable contracts, business
+  logic, source-read landmarks, or later root `memory_index.md` links are needed.
+- When a later root pass discovers local memories, route or consolidate them
+  through Phase 4.2. Do not duplicate their detail at root unless root-canonical
+  merge was selected.
 
 ---
 
@@ -232,12 +258,15 @@ Format → `references/document-schemas.md#module-narratives`
 Skip this phase entirely if none were found.
 
 **Goal**: Produce dense structured summaries of Databricks pipeline notebooks and
-the data flow graph between them. Do NOT load full notebook content — scan for
-landmark lines only. An agent must be able to answer structural, logical, and
-business-level pipeline questions from these two files — stage roles, data flow,
-business purpose, dependencies, and failure signatures. For questions that require
-reading actual transformation code, direct the agent to the specific notebook file
-by name (listed in `04_pipeline_stages.md`) rather than loading all notebooks.
+the data flow graph between them. Do NOT load full notebooks end-to-end. Start
+with landmark scanning, then read bounded notebook sections around relevant
+landmarks only when needed to identify actual columns used, helper calls, inline
+logic, output shape, or failure signatures. An agent must be able to answer
+structural, logical, and business-level pipeline questions from these two files —
+stage roles, data flow, business purpose, dependencies, and failure signatures.
+For questions that require exact transformation code, direct the agent to the
+specific notebook file and section listed in `04_pipeline_stages.md` rather than
+loading all notebooks.
 
 **Scan all notebooks before writing either file.** Collect inputs, outputs,
 called helper functions, ML artifacts, widgets, and library dependencies across
@@ -266,7 +295,7 @@ at the repo root; also check Databricks Asset Bundle resources under
 If no job definition file is found, note this — stage order will be inferred from
 notebook filenames and must be manually verified.
 
-### Landmark scanning approach (Azure Databricks / Spark)
+### Landmark-first bounded reading approach (Azure Databricks / Spark)
 
 For each notebook, scan for these patterns to build the summary skeleton:
 - `spark.read`, `spark.table(`, `.load(`, `spark.sql(` → Delta table inputs
@@ -288,6 +317,23 @@ For each notebook, scan for these patterns to build the summary skeleton:
   `# %% [markdown]` → natural section headers, use as structure
 - `%run ./path/to/notebook` → notebook dependency; document separately from
   Python helper imports
+
+After landmarks are found, read only the bounded section needed to make the stage
+docs accurate:
+- Prefer the current markdown/command section: from the nearest preceding
+  section marker (`# COMMAND ----------`, `# MAGIC %md`, `# %% [markdown]`, or
+  markdown heading) through the next section marker.
+- If a section is huge, read a small window around the landmark first, then expand
+  only to the enclosing logical block required to identify inputs, outputs,
+  helper calls, and inline business logic.
+- For `.ipynb`, inspect cell metadata/source for the matching cell and adjacent
+  markdown title cell; do not concatenate the whole notebook into context.
+- Stop reading once the stage entry can name actual inputs/outputs, columns used,
+  helper dependencies, key operations, and failure signature. If the evidence is
+  still ambiguous, mark the field as `VERIFY IN SOURCE` with the exact section
+  pointer instead of guessing.
+- Never paste full notebook bodies into AGENTS docs. Summarize intent and point
+  to exact sections for future source reads.
 
 ### Output 1: Stage docs
 
@@ -558,7 +604,7 @@ When code changes:
 - New CLI command / Makefile target → update playbook
 - Renamed module → update `00_map.md` + `AGENTS.md` module index + its contract filename + all cross-references that point to it
 - Module removed → remove from `00_map.md`, `AGENTS.md`, its contract file, and any cross-references pointing to it
-- New notebook stage added to pipeline → create entry in `04_pipeline_stages.md` (landmark scan only); update Stage Sequence and Data Flow table in `05_pipeline_dag.md`; re-evaluate critical path
+- New notebook stage added to pipeline → create entry in `04_pipeline_stages.md` using landmark-first bounded section reads; update Stage Sequence and Data Flow table in `05_pipeline_dag.md`; re-evaluate critical path
 - Notebook stage removed → remove its entry from `04_pipeline_stages.md`; update Stage Sequence, Data Flow, and critical path in `05_pipeline_dag.md`
 
 Procedure: read changed files → identify affected AGENTS/ documents →
@@ -571,8 +617,9 @@ surgical edits only → update `last_updated` timestamp by running
 
 After all other documents are written, generate `AGENTS/00_agent_instructions.md`.
 
-This step only applies to the full directory format. Flat format stops at Phase 2
-with `AGENTS.md` serving as the agent entry point.
+This step only applies to the full directory format. Flat format writes the
+final frontmatter `AGENTS.md` from gathered facts, with that file serving as the
+agent entry point, and does not generate `AGENTS/00_agent_instructions.md`.
 
 This file is the entry point for `codebase-navigator`. It must accurately
 reflect every document actually produced — do not reference files that
@@ -584,8 +631,16 @@ Format → `references/document-schemas.md#agent-instructions`
 
 ## Output Structure
 
+Flat format:
+
 ```
-AGENTS.md                         # Human-readable index (always present)
+AGENTS.md                         # Agent memory entry point with frontmatter
+```
+
+Directory format:
+
+```
+AGENTS.md                         # Human-readable index without frontmatter
 AGENTS/
 ├── 00_agent_instructions.md      # Entry point for codebase-navigator
 ├── 00_map.md                     # Where things are
@@ -601,11 +656,13 @@ AGENTS/
     └── {task}.md                 # How to do tasks in this repo
 ```
 
-`AGENTS.md` is always at the repo root regardless of format:
-- Small repo (flat): it IS the agent memory (with frontmatter)
-- Larger repo (directory): it is the human-readable index of `AGENTS/` (no frontmatter)
+`AGENTS.md` is always present at the documented scope:
+- Flat: it IS the agent memory (with frontmatter)
+- Directory: it is the human-readable index of `AGENTS/` (no frontmatter)
 
-Commit both `AGENTS.md` and the `AGENTS/` directory to version control.
+Commit the files for the selected format:
+- Flat: commit `AGENTS.md`
+- Directory: commit both `AGENTS.md` and the `AGENTS/` directory
 
 ---
 

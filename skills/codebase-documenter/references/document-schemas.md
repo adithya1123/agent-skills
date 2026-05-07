@@ -68,6 +68,9 @@ _Last updated: {DATE}_
 ```
 
 **Rules for the flat format:**
+- Emit flat `AGENTS.md` after scoped reconnaissance and extraction, not before.
+  Its sections must be filled from observed facts, not guessed from the initial
+  format hypothesis.
 - Keep the whole file under 150 lines. If approaching that limit, the repo
   should use directory format instead — re-run the documenter.
 - Use flat format only for small, self-contained scopes that do not need stable
@@ -80,6 +83,9 @@ _Last updated: {DATE}_
 - Omit any section that has nothing to say.
 - YAML frontmatter is required — the navigator uses it to identify this as
   the agent entry point.
+- Paths in a scoped local `AGENTS.md` are relative to that documented scope.
+  If the memory is later promoted or merged into root docs, rewrite paths to be
+  relative to the repo root.
 
 ---
 
@@ -830,7 +836,10 @@ include relevant terminology — "Lakeflow pipelines", "Nielsen RMS data",
 **File**: `AGENTS/04_pipeline_stages.md`
 
 One file, one section per notebook. Stages are listed in pipeline execution order.
-Produced by scanning landmark lines — not by loading full notebook content.
+Produced by landmark-first bounded section reads — not by loading full notebook
+content end-to-end. Use landmarks to find relevant sections, then read only the
+bounded notebook section needed to identify actual inputs, outputs, helper calls,
+inline logic, and failure signatures.
 
 ```markdown
 # Pipeline Stages
@@ -909,6 +918,9 @@ from `AGENTS/memory_index.md`.
   exists, write `MISSING CONTRACT`, then add or route the missing contract before
   finalizing the documentation.
 - "Key operations" is a summary of intent, not a cell-by-cell transcript. Target 3–7 items. Each item must: reference its `[§ Markdown section header]`, state whether logic is inline or in a named helper call such as `lib.module.function()`. This lets an agent jump to the right section of the notebook if code-read is needed — rather than scanning the whole file.
+- If a bounded section read still cannot prove a column list, helper dependency,
+  output shape, or failure signature, write `VERIFY IN SOURCE` with the exact
+  notebook section pointer. Do not invent details from file names or nearby stages.
 - Notebooks are orchestration documents. Keep formulas, model feature logic,
   training/scoring internals, and reusable transformations in helper contracts
   and `02_business_logic.md`; the stage entry should point to them. If important
