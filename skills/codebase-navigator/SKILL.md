@@ -23,23 +23,26 @@ Install both skills together.
 
 ## First action — always
 
-**Check which memory format this repo uses.**
+**Check which memory format this repo or documented scope uses.** Start in the
+current working directory or the user-mentioned path, then walk upward toward
+the repo root until an entry point is found.
 
 **Option B — directory format**: look for `AGENTS/00_agent_instructions.md`.
 - If it exists → read it immediately before doing anything else. It contains
-  the full memory index and tells you exactly which document to read for any
-  question. Do not scan the codebase. Do not read random files. Start there.
+  the memory entry point and document inventory for that scope. Do not scan the
+  codebase. Do not read random files. Start there.
 
 **Option A — flat format**: if `AGENTS/00_agent_instructions.md` does NOT exist,
-look for `AGENTS.md` at the repo root.
+look for `AGENTS.md` at the same scope.
 - Check whether it has YAML frontmatter (`---` at the top with `name:` and `description:` fields).
 - If it has frontmatter → flat format memory. Read it and use it directly.
 - If it has no frontmatter → it is a human-readable directory index, not agent memory.
-  Continue to "If neither exists" below.
+  Continue walking upward or continue to "If neither exists" below.
 
-**If neither exists** → the repo has not been documented yet. Tell the user:
-*"This repo doesn't have agent memory yet. Run the `codebase-documenter` skill
-on it first — ask me to document this codebase and I'll build the memory.
+**If neither exists in the current scope or any ancestor up to repo root** → the
+repo or requested scope has not been documented yet. Tell the user:
+*"This repo or scope doesn't have agent memory yet. Run the `codebase-documenter`
+skill on it first — ask me to document this codebase and I'll build the memory.
 Then I can answer questions about it efficiently."*
 Then offer to answer from source files directly as a fallback, with the caveat
 that responses will be slower and less reliable than from documented memory.
